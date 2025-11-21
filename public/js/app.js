@@ -462,7 +462,7 @@ function renderMedicoCitas(citas) {
                   cita.estado === "completada" && cita.tiene_historia_clinica
                     ? `
                     <div class="resumen-consulta mt-2 p-3 bg-light rounded border-start border-primary border-3">
-                        <h6 class="mb-2 text-primary"><i class="bi bi-file-medical-fill"></i> Resumen de Consulta</h6>
+                        <h5 class="mb-2 text-primary resumen-titulo"><i class="bi bi-file-medical-fill"></i> Resumen de Consulta</h5>
                         <div class="row">
                             <div class="col-md-8">
                                 <div class="mb-2">
@@ -486,9 +486,6 @@ function renderMedicoCitas(citas) {
                                             <i class="bi bi-x-circle"></i> Sin receta
                                         </span>
                                     `}
-                                    <small class="text-muted">
-                                        <i class="bi bi-calendar"></i> ${formatDate(cita.fecha)}
-                                    </small>
                                 </div>
                             </div>
                         </div>

@@ -375,7 +375,7 @@ function mostrarHistoriaClinicaExistente(historia) {
             </div>
         </div>
         
-        <div class="row">
+        <div class="row historia-resumen-texto">
             <div class="col-md-6">
                 <h6 class="text-primary"><i class="bi bi-clipboard-pulse"></i> Datos de la Consulta</h6>
                 <p><strong>Motivo:</strong> ${historia.motivo_consulta}</p>
@@ -394,7 +394,7 @@ function mostrarHistoriaClinicaExistente(historia) {
             </div>
         </div>
         
-        <div class="row">
+        <div class="row historia-resumen-texto">
             <div class="col-md-12">
                 <h6 class="text-primary"><i class="bi bi-prescription2"></i> Tratamiento y Recomendaciones</h6>
                 <p><strong>Tratamiento:</strong> ${historia.tratamiento || 'No especificado'}</p>
@@ -445,13 +445,13 @@ function mostrarHistorialPaciente(historial) {
                     <div class="card-header py-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <strong>${fechaConsulta} - Dr. ${registro.medico_nombre} (${registro.especialidad})</strong>
-                            <small class="text-muted">Cita: ${fechaCita}</small>
+                            <small class="text-muted">${fechaCita}</small>
                         </div>
                     </div>
-                    <div class="card-body py-2">
+                    <div class="card-body py-2 historia-resumen-texto">
                         <p class="mb-1"><strong>Diagnóstico:</strong> ${registro.diagnostico}</p>
-                        <p class="mb-1"><strong>Motivo:</strong> ${registro.motivo_consulta}</p>
-                        ${registro.tratamiento ? `<p class="mb-0"><strong>Tratamiento:</strong> ${registro.tratamiento}</p>` : ''}
+                        <p class="mb-1"><strong>Tratamiento:</strong> ${registro.tratamiento}</p>
+                        ${registro.tratamiento ? `<p class="mb-0"><strong>Motivo:</strong> ${registro.motivo_consulta}</p>` : ''}
                     </div>
                 </div>
             `;
