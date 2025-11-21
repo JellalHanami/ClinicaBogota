@@ -507,4 +507,46 @@ router.put("/:id/reprogramar", authenticateToken, verifyRole(["paciente"]), asyn
   }
 })
 
+// Obtener citas de un médico en una fecha específica (para verificar disponibilidad)
+router.get("/medico/:medicoId", authenticateToken, async (req, res) => {
+  try {
+    const { medicoId } = req.params
+    const { fecha } = req.query
+
+    let query = `
+      SELECT 
+        c.id,
+        c.fecha,
+        c.hora,
+        c.estado,
+        u.nombre as paciente_nombre
+      FROM citas c
+      JOIN usuarios u ON c.paciente_id = u.id
+      WHERE c.medico_id = ? AND c.estado != 'cancelada'
+    `
+    
+    let params = [medicoId]
+
+    if (fecha) {
+      query += " AND c.fecha = ?"
+      params.push(fecha)
+    }
+
+    query += " ORDER BY c.fecha ASC, c.hora ASC"
+
+    const [rows] = await pool.execute(query, params)
+
+    res.json({
+      success: true,
+      data: rows
+    })
+  } catch (error) {
+    console.error("Error obteniendo citas del médico:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error obteniendo citas del médico"
+    })
+  }
+})
+
 module.exports = router

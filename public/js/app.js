@@ -542,11 +542,19 @@ async function loadMedicos() {
 
 function showNewAppointmentModal() {
   document.getElementById("newAppointmentModal").style.display = "flex"
+  loadMedicosForAppointment()
 }
 
 function closeNewAppointmentModal() {
   document.getElementById("newAppointmentModal").style.display = "none"
   document.getElementById("newAppointmentForm").reset()
+  // Resetear los selects
+  const fechaSelect = document.getElementById("appointmentFecha")
+  const horaSelect = document.getElementById("appointmentHora")
+  fechaSelect.innerHTML = '<option value="">Primero selecciona un médico</option>'
+  fechaSelect.disabled = true
+  horaSelect.innerHTML = '<option value="">Primero selecciona una fecha</option>'
+  horaSelect.disabled = true
 }
 
 async function handleNewAppointment(event) {
@@ -558,6 +566,22 @@ async function handleNewAppointment(event) {
     fecha: formData.get("fecha"),
     hora: formData.get("hora"),
     motivo: formData.get("motivo"),
+  }
+
+  // Validaciones adicionales
+  if (!appointmentData.medico_id) {
+    showToast("Por favor selecciona un médico", "error")
+    return
+  }
+
+  if (!appointmentData.fecha) {
+    showToast("Por favor selecciona una fecha", "error")
+    return
+  }
+
+  if (!appointmentData.hora) {
+    showToast("Por favor selecciona una hora", "error")
+    return
   }
 
   try {
@@ -1124,3 +1148,226 @@ function crearReceta(citaId, historiaClinicaId) {
   // Abrir la página de historia clínica que detectará que debe crear una receta
   window.open(`historia-clinica.html?cita=${citaId}&crear_receta=1`, '_blank');
 }
+
+// Funciones para el sistema de disponibilidad
+async function loadMedicosForAppointment() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/usuarios?rol=medico`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+
+    const result = await response.json()
+    const medicoSelect = document.getElementById("appointmentMedico")
+    
+    if (result.success) {
+      medicoSelect.innerHTML = '<option value="">Seleccionar médico...</option>'
+      result.data.forEach(medico => {
+        const option = document.createElement('option')
+        option.value = medico.id
+        option.textContent = `Dr. ${medico.nombre} - ${medico.especialidad || 'Medicina General'}`
+        medicoSelect.appendChild(option)
+      })
+    }
+  } catch (error) {
+    console.error('Error cargando médicos:', error)
+    showToast('Error al cargar la lista de médicos', 'error')
+  }
+}
+
+async function loadMedicoDisponibilidad() {
+  const medicoId = document.getElementById("appointmentMedico").value
+  const fechaSelect = document.getElementById("appointmentFecha")
+  const horaSelect = document.getElementById("appointmentHora")
+  
+  // Resetear selects de fecha y hora
+  horaSelect.innerHTML = '<option value="">Primero selecciona una fecha</option>'
+  horaSelect.disabled = true
+  
+  if (!medicoId) {
+    fechaSelect.innerHTML = '<option value="">Primero selecciona un médico</option>'
+    fechaSelect.disabled = true
+    return
+  }
+
+  try {
+    showLoading(true)
+    const response = await fetch(`${API_BASE_URL}/disponibilidad/medico/${medicoId}`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+
+    const result = await response.json()
+    console.log('Datos de disponibilidad recibidos:', result)
+    
+    if (result.success && result.data.length > 0) {
+      console.log('Primer slot:', result.data[0])
+      fechaSelect.innerHTML = '<option value="">Seleccionar fecha...</option>'
+      
+      // Agrupar por fecha y obtener fechas únicas
+      const fechasUnicas = new Set()
+      const fechasDisponibles = {}
+      
+      result.data.forEach(slot => {
+        let fecha = slot.fecha
+        
+        // Normalizar la fecha a formato YYYY-MM-DD
+        if (fecha instanceof Date) {
+          fecha = fecha.toISOString().split('T')[0]
+        } else if (typeof fecha === 'string') {
+          // Si viene con formato de fecha completa, extraer solo la parte de fecha
+          if (fecha.includes('T') || fecha.includes(' ')) {
+            fecha = fecha.split('T')[0].split(' ')[0]
+          }
+        }
+        
+        console.log('Procesando fecha:', fecha, 'Original:', slot.fecha)
+        
+        // Validar que la fecha es válida
+        const fechaTest = new Date(fecha + 'T12:00:00')
+        if (!isNaN(fechaTest.getTime()) && fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          fechasUnicas.add(fecha)
+          
+          if (!fechasDisponibles[fecha]) {
+            fechasDisponibles[fecha] = []
+          }
+          fechasDisponibles[fecha].push({
+            ...slot,
+            fecha: fecha
+          })
+        } else {
+          console.error('Fecha inválida encontrada:', fecha)
+        }
+      })
+      
+      // Agregar fechas al select ordenadas
+      const fechasOrdenadas = Array.from(fechasUnicas).sort()
+      fechasOrdenadas.forEach(fecha => {
+        const option = document.createElement('option')
+        option.value = fecha
+        
+        try {
+          const fechaObj = new Date(fecha + 'T12:00:00') // Agregar hora para evitar problemas de zona horaria
+          const fechaFormateada = fechaObj.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+          option.textContent = fechaFormateada
+        } catch (error) {
+          console.error('Error formateando fecha:', error)
+          option.textContent = fecha
+        }
+        
+        fechaSelect.appendChild(option)
+      })
+      
+      fechaSelect.disabled = false
+      
+      // Guardar datos de disponibilidad para usar después
+      window.disponibilidadData = fechasDisponibles
+    } else {
+      fechaSelect.innerHTML = '<option value="">No hay fechas disponibles</option>'
+      fechaSelect.disabled = true
+    }
+  } catch (error) {
+    console.error('Error cargando disponibilidad:', error)
+    showToast('Error al cargar la disponibilidad del médico', 'error')
+    fechaSelect.innerHTML = '<option value="">Error cargando disponibilidad</option>'
+    fechaSelect.disabled = true
+  } finally {
+    showLoading(false)
+  }
+}
+
+async function loadHorasDisponibles() {
+  const fecha = document.getElementById("appointmentFecha").value
+  const horaSelect = document.getElementById("appointmentHora")
+  
+  if (!fecha || !window.disponibilidadData) {
+    horaSelect.innerHTML = '<option value="">Primero selecciona una fecha</option>'
+    horaSelect.disabled = true
+    return
+  }
+
+  try {
+    showLoading(true)
+    
+    // Obtener citas existentes para esta fecha y médico
+    const medicoId = document.getElementById("appointmentMedico").value
+    const citasResponse = await fetch(`${API_BASE_URL}/citas/medico/${medicoId}?fecha=${fecha}`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+    
+    const citasResult = await citasResponse.json()
+    const citasExistentes = citasResult.success ? citasResult.data.map(cita => cita.hora) : []
+    
+    // Obtener slots disponibles para esta fecha
+    const slotsDisponibles = window.disponibilidadData[fecha] || []
+    
+    horaSelect.innerHTML = '<option value="">Seleccionar hora...</option>'
+    
+    if (slotsDisponibles.length > 0) {
+      // Generar horarios basados en la disponibilidad
+      const slot = slotsDisponibles[0] // Tomar el primer slot para obtener inicio, fin e intervalo
+      const horaInicio = slot.hora_inicio
+      const horaFin = slot.hora_fin
+      const intervalo = slot.intervalo || 30
+      
+      const horarios = generarHorarios(horaInicio, horaFin, intervalo)
+      
+      horarios.forEach(hora => {
+        if (!citasExistentes.includes(hora)) {
+          const option = document.createElement('option')
+          option.value = hora
+          option.textContent = hora
+          horaSelect.appendChild(option)
+        }
+      })
+      
+      horaSelect.disabled = false
+      
+      if (horaSelect.options.length === 1) {
+        horaSelect.innerHTML = '<option value="">No hay horarios disponibles</option>'
+        horaSelect.disabled = true
+      }
+    } else {
+      horaSelect.innerHTML = '<option value="">No hay horarios disponibles</option>'
+      horaSelect.disabled = true
+    }
+  } catch (error) {
+    console.error('Error cargando horarios:', error)
+    showToast('Error al cargar los horarios disponibles', 'error')
+    horaSelect.innerHTML = '<option value="">Error cargando horarios</option>'
+    horaSelect.disabled = true
+  } finally {
+    showLoading(false)
+  }
+}
+
+function generarHorarios(inicio, fin, intervaloMinutos) {
+  const horarios = []
+  const [horaInicio, minutoInicio] = inicio.split(':').map(Number)
+  const [horaFin, minutoFin] = fin.split(':').map(Number)
+  
+  const inicioEnMinutos = horaInicio * 60 + minutoInicio
+  const finEnMinutos = horaFin * 60 + minutoFin
+  
+  for (let minutos = inicioEnMinutos; minutos < finEnMinutos; minutos += intervaloMinutos) {
+    const horas = Math.floor(minutos / 60)
+    const mins = minutos % 60
+    const horaFormateada = `${horas.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+    horarios.push(horaFormateada)
+  }
+  
+  return horarios
+}
+
+// Hacer las funciones globales para acceso desde HTML
+window.loadMedicoDisponibilidad = loadMedicoDisponibilidad
+window.loadHorasDisponibles = loadHorasDisponibles

@@ -35,9 +35,17 @@ router.get("/mia", authenticateToken, verifyMedico, async (req, res) => {
 
     const [rows] = await pool.execute(query, [medicoId])
 
+    // Formatear las fechas para asegurar compatibilidad
+    const formattedRows = rows.map(row => ({
+      ...row,
+      fecha: row.fecha instanceof Date ? 
+        row.fecha.toISOString().split('T')[0] : 
+        row.fecha
+    }))
+
     res.json({
       success: true,
-      data: rows
+      data: formattedRows
     })
   } catch (error) {
     console.error("Error obteniendo disponibilidad:", error)
@@ -68,9 +76,17 @@ router.get("/medico/:medicoId", authenticateToken, async (req, res) => {
 
     const [rows] = await pool.execute(query, [medicoId, fechaDesde])
 
+    // Formatear las fechas para asegurar compatibilidad
+    const formattedRows = rows.map(row => ({
+      ...row,
+      fecha: row.fecha instanceof Date ? 
+        row.fecha.toISOString().split('T')[0] : 
+        row.fecha
+    }))
+
     res.json({
       success: true,
-      data: rows
+      data: formattedRows
     })
   } catch (error) {
     console.error("Error obteniendo disponibilidad del médico:", error)
